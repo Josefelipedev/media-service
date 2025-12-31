@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Media {
+  id        String    @id @default(uuid())
+  key       String    @unique
+  url       String
+  type      String
+  size      Int
+  ownerId   String
+  ownerType String
+  app       String
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([ownerId, ownerType])
+  @@index([app])
+  @@index([createdAt])
+}
+
+model DeletionLog {
+  id         String   @id @default(uuid())
+  userId     String
+  userType   String
+  mediaCount Int
+  deletedBy  String
+  reason     String?
+  createdAt  DateTime @default(now())
+}
