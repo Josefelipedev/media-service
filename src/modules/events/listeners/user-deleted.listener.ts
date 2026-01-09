@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { MediaService } from '../../media/media.service';
-import { PrismaService } from '../../../infra/database/prisma.service';
+import { DatabaseService } from '../../../infra/database/database.service';
+import { deletionLog, media } from '../../../infra/database/schema';
+import { eq } from 'drizzle-orm';
 
 export interface UserDeletedEvent {
   userId: string;
@@ -17,7 +19,7 @@ export class UserDeletedListener {
 
   constructor(
     private readonly mediaService: MediaService,
-    private readonly prisma: PrismaService,
+    private readonly database: DatabaseService,
   ) {}
 
   @OnEvent('user.deleted')
@@ -34,14 +36,12 @@ export class UserDeletedListener {
       );
 
       // Log the deletion for compliance
-      await this.prisma.deletionLog.create({
-        data: {
-          userId: payload.userId,
-          userType: payload.ownerType,
-          mediaCount: result.deletedCount,
-          deletedBy: payload.deletedBy,
-          reason: payload.reason || 'Account deletion',
-        },
+      await this.database.db.insert(deletionLog).values({
+        userId: payload.userId,
+        userType: payload.ownerType,
+        mediaCount: result.deletedCount,
+        deletedBy: payload.deletedBy,
+        reason: payload.reason || 'Account deletion',
       });
 
       this.logger.log(
@@ -69,10 +69,10 @@ export class UserDeletedListener {
 
     // Update file size in database
     try {
-      await this.prisma.media.update({
-        where: { id: payload.mediaId },
-        data: { size: payload.fileSize },
-      });
+      await this.database.db
+        .update(media)
+        .set({ size: payload.fileSize, updatedAt: new Date() })
+        .where(eq(media.id, payload.mediaId));
     } catch (error) {
       this.logger.error(
         `Failed to update media size for ${payload.mediaId}: ${error.message}`,

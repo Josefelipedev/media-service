@@ -6,9 +6,10 @@ import {
   MemoryHealthIndicator,
   DiskHealthIndicator,
 } from '@nestjs/terminus';
-import { PrismaService } from '../infra/database/prisma.service';
+import { DatabaseService } from '../infra/database/database.service';
 import { Public } from '../common/decorators/public.decorator';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { sql } from 'drizzle-orm';
 
 @Controller('health')
 @ApiTags('health')
@@ -18,7 +19,7 @@ export class HealthController {
     private http: HttpHealthIndicator,
     private memory: MemoryHealthIndicator,
     private disk: DiskHealthIndicator,
-    private prisma: PrismaService,
+    private database: DatabaseService,
   ) {}
 
   @Get()
@@ -31,7 +32,7 @@ export class HealthController {
       // Database health check
       async () => {
         try {
-          await this.prisma.$queryRaw`SELECT 1`;
+          await this.database.db.execute(sql`SELECT 1`);
           return {
             database: {
               status: 'up',
@@ -67,7 +68,7 @@ export class HealthController {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      service: process.env.APP_NAME || 'Media Service',
+      service: process.env.APP_NAME || 'Payments Service',
     };
   }
 
@@ -83,7 +84,7 @@ export class HealthController {
 
     try {
       // Check database
-      await this.prisma.$queryRaw`SELECT 1`;
+      await this.database.db.execute(sql`SELECT 1`);
       checks.database = true;
     } catch (error) {
       checks.database = false;

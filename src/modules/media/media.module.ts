@@ -6,8 +6,7 @@ import { MediaAccessPolicy } from './policies/media-access.policy';
 import { AuthModule } from '../auth/auth.module';
 import { StorageModule } from '../storage/storage.module';
 import { EventsModule } from '../events/events.module';
-import { PrismaService } from '../../infra/database/prisma.service';
-import { PrismaModule } from '../../infra/database/prisma.module';
+import { DatabaseModule } from '../../infra/database/database.module';
 
 
 @Module({
@@ -15,10 +14,10 @@ import { PrismaModule } from '../../infra/database/prisma.module';
     AuthModule,
     StorageModule,
     forwardRef(() => EventsModule),
-    PrismaModule,
+    DatabaseModule,
   ],
   controllers: [MediaController],
-  providers: [MediaService, MediaRepository, MediaAccessPolicy, PrismaService],
+  providers: [MediaService, MediaRepository, MediaAccessPolicy],
   exports: [MediaService],
 })
 export class MediaModule {}

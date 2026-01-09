@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MediaModule } from '../media/media.module';
-import { PrismaModule } from '../../infra/database/prisma.module';
+import { DatabaseModule } from '../../infra/database/database.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { UserDeletedListener } from './listeners/user-deleted.listener';
 
@@ -16,7 +16,7 @@ import { UserDeletedListener } from './listeners/user-deleted.listener';
       ignoreErrors: false,
     }),
     forwardRef(() => MediaModule),
-    PrismaModule,
+    DatabaseModule,
   ],
   providers: [UserDeletedListener],
 })

@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import 'dotenv/config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors({
     origin: '*', // Ou use '*' para permitir tudo
     credentials: false,
@@ -12,8 +12,8 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Media Service API')
-    .setDescription('API documentation for Media Service.')
+    .setTitle('Payments Service API')
+    .setDescription('API documentation for Payments Service.')
     .setVersion('1.0')
     .addBearerAuth(
       {

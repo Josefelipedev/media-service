@@ -1,82 +1,141 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../infra/database/prisma.service';
-import { Media, Prisma } from '@prisma/client';
+import { DatabaseService } from '../../infra/database/database.service';
+import { NewMedia, media } from '../../infra/database/schema';
 import { MediaEntity } from './entities/media.entity';
+import { and, asc, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+
+type MediaWhere = {
+  ownerId?: string;
+  ownerType?: string;
+  app?: string;
+  deletedAt?: null | Date;
+};
+
+type MediaOrderBy = {
+  createdAt?: 'asc' | 'desc';
+};
+
+type MediaUpdate = Partial<NewMedia>;
 
 @Injectable()
 export class MediaRepository {
-  constructor(private prisma: PrismaService) {}
+  constructor(private database: DatabaseService) {}
 
-  async create(data: Prisma.MediaCreateInput): Promise<MediaEntity> {
-    const media = await this.prisma.media.create({
-      data,
-    });
-    return new MediaEntity(media);
+  async create(data: NewMedia): Promise<MediaEntity> {
+    const [row] = await this.database.db.insert(media).values(data).returning();
+    return new MediaEntity(row);
   }
 
   async findById(id: string): Promise<MediaEntity | null> {
-    const media = await this.prisma.media.findUnique({
-      where: { id, deletedAt: null },
-    });
-    return media ? new MediaEntity(media) : null;
+    const [row] = await this.database.db
+      .select()
+      .from(media)
+      .where(and(eq(media.id, id), isNull(media.deletedAt)));
+    return row ? new MediaEntity(row) : null;
   }
 
   async findAll(params: {
-    where?: Prisma.MediaWhereInput;
+    where?: MediaWhere;
     skip?: number;
     take?: number;
-    orderBy?: Prisma.MediaOrderByWithRelationInput;
+    orderBy?: MediaOrderBy;
   }): Promise<MediaEntity[]> {
-    const medias = await this.prisma.media.findMany({
-      ...params,
-      where: { ...params.where, deletedAt: null },
-    });
-    return medias.map((media) => new MediaEntity(media));
+    const whereClause = this.buildWhere(params.where);
+    let query = this.database.db.select().from(media).$dynamic();
+
+    if (whereClause) {
+      query = query.where(whereClause);
+    }
+
+    if (params.orderBy?.createdAt) {
+      query = query.orderBy(
+        params.orderBy.createdAt === 'desc'
+          ? desc(media.createdAt)
+          : asc(media.createdAt),
+      );
+    }
+
+    if (params.take) {
+      query = query.limit(params.take);
+    }
+
+    if (params.skip) {
+      query = query.offset(params.skip);
+    }
+
+    const rows = await query;
+    return rows.map((row) => new MediaEntity(row));
   }
 
-  async count(where: Prisma.MediaWhereInput): Promise<number> {
-    return this.prisma.media.count({
-      where: { ...where, deletedAt: null },
-    });
+  async count(where: MediaWhere): Promise<number> {
+    const whereClause = this.buildWhere(where);
+    const query = this.database.db
+      .select({ count: sql<number>`count(*)` })
+      .from(media);
+
+    const [row] = whereClause ? await query.where(whereClause) : await query;
+    return Number(row?.count ?? 0);
   }
 
-  async update(
-    id: string,
-    data: Prisma.MediaUpdateInput,
-  ): Promise<MediaEntity> {
-    const media = await this.prisma.media.update({
-      where: { id },
-      data,
-    });
-    return new MediaEntity(media);
+  async update(id: string, data: MediaUpdate): Promise<MediaEntity> {
+    const [row] = await this.database.db
+      .update(media)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(media.id, id))
+      .returning();
+    return new MediaEntity(row);
   }
 
   async softDelete(id: string): Promise<MediaEntity> {
-    const media = await this.prisma.media.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-    return new MediaEntity(media);
+    const [row] = await this.database.db
+      .update(media)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(media.id, id))
+      .returning();
+    return new MediaEntity(row);
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.media.delete({
-      where: { id },
-    });
+    await this.database.db.delete(media).where(eq(media.id, id));
   }
 
   async softDeleteAllByOwner(
     ownerId: string,
     ownerType: string,
   ): Promise<number> {
-    const result = await this.prisma.media.updateMany({
-      where: {
-        ownerId,
-        ownerType,
-        deletedAt: null,
-      },
-      data: { deletedAt: new Date() },
-    });
-    return result.count;
+    const rows = await this.database.db
+      .update(media)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(media.ownerId, ownerId),
+          eq(media.ownerType, ownerType),
+          isNull(media.deletedAt),
+        ),
+      )
+      .returning({ id: media.id });
+    return rows.length;
+  }
+
+  private buildWhere(where?: MediaWhere) {
+    const conditions: SQL[] = [];
+
+    if (!where || !('deletedAt' in where) || where.deletedAt === null) {
+      conditions.push(isNull(media.deletedAt));
+    }
+
+    if (where?.ownerId) {
+      conditions.push(eq(media.ownerId, where.ownerId));
+    }
+
+    if (where?.ownerType) {
+      conditions.push(eq(media.ownerType, where.ownerType));
+    }
+
+    if (where?.app) {
+      conditions.push(eq(media.app, where.app));
+    }
+
+    return conditions.length ? and(...conditions) : undefined;
   }
 }

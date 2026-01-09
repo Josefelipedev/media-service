@@ -14,8 +14,9 @@ import authConfig from './config/auth.config';
 import backblazeConfig from './config/backblaze.config';
 import databaseConfig from './config/database.config';
 import validationConfig from './config/validation.config';
-import { PrismaService } from './infra/database/prisma.service';
-import { PrismaModule } from './infra/database/prisma.module';
+import paymentsConfig from './config/payments.config';
+import { DatabaseModule } from './infra/database/database.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { PrismaModule } from './infra/database/prisma.module';
         authConfig,
         backblazeConfig,
         databaseConfig,
+        paymentsConfig,
         validationConfig,
       ],
       envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
@@ -35,10 +37,10 @@ import { PrismaModule } from './infra/database/prisma.module';
     StorageModule,
     EventsModule,
     HealthModule,
-    PrismaModule,
+    DatabaseModule,
+    PaymentsModule,
   ],
   providers: [
-    PrismaService,
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,

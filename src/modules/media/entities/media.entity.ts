@@ -1,8 +1,8 @@
-import { Media as PrismaMedia } from '@prisma/client';
 import { Exclude, Transform } from 'class-transformer';
 import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
+import { MediaRow } from '../../../infra/database/schema';
 
-export class MediaEntity implements PrismaMedia {
+export class MediaEntity {
   @ApiProperty()
   id: string;
 
@@ -44,7 +44,7 @@ export class MediaEntity implements PrismaMedia {
   @Exclude()
   deletedAt: Date | null;
 
-  constructor(partial: Partial<MediaEntity>) {
+  constructor(partial: Partial<MediaEntity> | MediaRow) {
     Object.assign(this, partial);
   }
 }
