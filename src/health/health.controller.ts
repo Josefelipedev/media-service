@@ -8,8 +8,10 @@ import {
 } from '@nestjs/terminus';
 import { PrismaService } from '../infra/database/prisma.service';
 import { Public } from '../common/decorators/public.decorator';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 @Controller('health')
+@ApiTags('health')
 export class HealthController {
   constructor(
     private health: HealthCheckService,
@@ -22,6 +24,8 @@ export class HealthController {
   @Get()
   @Public()
   @HealthCheck()
+  @ApiOperation({ summary: 'Health check' })
+  @ApiOkResponse({ description: 'Health status.' })
   async check() {
     return this.health.check([
       // Database health check
@@ -57,6 +61,8 @@ export class HealthController {
 
   @Get('liveness')
   @Public()
+  @ApiOperation({ summary: 'Liveness probe' })
+  @ApiOkResponse({ description: 'Service liveness.' })
   liveness() {
     return {
       status: 'ok',
@@ -67,6 +73,8 @@ export class HealthController {
 
   @Get('readiness')
   @Public()
+  @ApiOperation({ summary: 'Readiness probe' })
+  @ApiOkResponse({ description: 'Service readiness.' })
   async readiness() {
     const checks = {
       database: false,

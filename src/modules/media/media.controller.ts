@@ -21,8 +21,28 @@ import { ListMediaDto } from './dto/list-media.dto';
 import { User } from '../../common/decorators/user.decorator';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { MediaEntity } from './entities/media.entity';
+import {
+  CreatePresignResponseDto,
+  MediaListResponseDto,
+} from './dto/media-response.dto';
 
 @Controller('media')
+@ApiTags('media')
 // @UseGuards(JwtAuthGuard)
 @UseInterceptors(ClassSerializerInterceptor)
 export class MediaController {
@@ -30,6 +50,12 @@ export class MediaController {
 
   @Post('presign-url')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a presigned upload URL' })
+  @ApiCreatedResponse({
+    description: 'Presigned URL created.',
+    type: CreatePresignResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid payload or file type.' })
   async createPresignUrl(
     @Body() createPresignDto: CreatePresignDto,
     // @User() user: JwtPayload,
@@ -44,6 +70,27 @@ export class MediaController {
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Upload a file directly to storage' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        metadata: {
+          type: 'string',
+          description: 'Optional JSON string with metadata.',
+          example: '{"source":"web"}',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiCreatedResponse({
+    description: 'File uploaded successfully.',
+    type: MediaEntity,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid file type or payload.' })
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() metadata: any,
@@ -58,6 +105,18 @@ export class MediaController {
     return this.mediaService.uploadFileDirectly(file, metadata, user);
   }
   @Get()
+  @ApiOperation({ summary: 'List media items' })
+  @ApiBearerAuth('JWT')
+  @ApiQuery({ name: 'app', required: false, type: String })
+  @ApiQuery({ name: 'ownerType', required: false, enum: ['user', 'company'] })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'type', required: false, type: String })
+  @ApiOkResponse({
+    description: 'Media list.',
+    type: MediaListResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized.' })
   async listMedia(
     @Query() listMediaDto: ListMediaDto,
     @User() user: JwtPayload,
@@ -67,6 +126,13 @@ export class MediaController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a media item' })
+  @ApiBearerAuth('JWT')
+  @ApiParam({ name: 'id', description: 'Media ID' })
+  @ApiBody({ type: DeleteMediaDto })
+  @ApiNoContentResponse({ description: 'Media deleted.' })
+  @ApiBadRequestResponse({ description: 'Invalid payload.' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized.' })
   async deleteMedia(
     @Param('id') id: string,
     @Body() deleteMediaDto: DeleteMediaDto,
