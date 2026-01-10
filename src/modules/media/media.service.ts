@@ -6,7 +6,6 @@ import {
 import { MediaRepository } from './media.repository';
 import { StorageService } from '../storage/storage.interface';
 import { MediaAccessPolicy } from './policies/media-access.policy';
-import { CreatePresignDto } from './dto/create-presign.dto';
 import { DeleteMediaDto } from './dto/delete-media.dto';
 import { ListMediaDto } from './dto/list-media.dto';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
@@ -19,55 +18,9 @@ export class MediaService {
     private readonly mediaAccessPolicy: MediaAccessPolicy,
   ) {}
 
-  async createPresignedUrl(
-    createPresignDto: CreatePresignDto,
-    user: { app: string; ownerType: string; userId: string },
-  ) {
-    console.log('createPresignedUrl', createPresignDto);
-    const { fileName, fileType, metadata } = createPresignDto;
-
-    // Validate file type
-    const allowedTypes = ['image/', 'video/', 'application/pdf', 'text/'];
-    if (!allowedTypes.some((type) => fileType.startsWith(type))) {
-      throw new BadRequestException('File type not allowed');
-    }
-
-    // Generate unique key
-    const timestamp = Date.now();
-    const key = `${user.app}/${user.ownerType}/${user.userId}/${timestamp}-${fileName}`;
-
-    // Generate presigned URL
-    const presignedUrl = await this.storageService.generatePresignedUrl(
-      key,
-      fileType,
-    );
-
-    // Save metadata to database
-    const media = await this.mediaRepository.create({
-      key,
-      url: presignedUrl.split('?')[0], // URL without query params
-      type: fileType,
-      size: 0, // Will be updated after upload
-      ownerId: user.userId,
-      ownerType: user.ownerType,
-      app: user.app,
-      metadata: metadata || {},
-    });
-
-    console.log('Created media record:', media);
-    console.log('Created media record:', presignedUrl);
-
-    return {
-      uploadUrl: presignedUrl,
-      mediaId: media.id,
-      key: media.key,
-      expiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour
-    };
-  }
-
   async uploadFileDirectly(
     file: Express.Multer.File,
-    metadata: any,
+    metadata: Record<string, unknown> | undefined,
     user: { app: string; ownerType: string; userId: string },
   ) {
     console.log('uploadFileDirectly', file);

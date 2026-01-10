@@ -12,10 +12,10 @@ import {
   HttpStatus,
   UploadedFile,
   Request,
+  BadRequestException,
 } from '@nestjs/common';
 import { MediaService } from './media.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CreatePresignDto } from './dto/create-presign.dto';
 import { DeleteMediaDto } from './dto/delete-media.dto';
 import { ListMediaDto } from './dto/list-media.dto';
 import { User } from '../../common/decorators/user.decorator';
@@ -36,10 +36,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { MediaEntity } from './entities/media.entity';
-import {
-  CreatePresignResponseDto,
-  MediaListResponseDto,
-} from './dto/media-response.dto';
+import { MediaListResponseDto } from './dto/media-response.dto';
+import { UploadMediaDto } from './dto/upload-media.dto';
 
 @Controller('media')
 @ApiTags('media')
@@ -47,26 +45,6 @@ import {
 @UseInterceptors(ClassSerializerInterceptor)
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
-
-  @Post('presign-url')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a presigned upload URL' })
-  @ApiCreatedResponse({
-    description: 'Presigned URL created.',
-    type: CreatePresignResponseDto,
-  })
-  @ApiBadRequestResponse({ description: 'Invalid payload or file type.' })
-  async createPresignUrl(
-    @Body() createPresignDto: CreatePresignDto,
-    // @User() user: JwtPayload,
-  ) {
-    // const key = `${user.app}/${user.ownerType}/${user.userId}/${timestamp}-${fileName}`;
-    return this.mediaService.createPresignedUrl(createPresignDto, {
-      app: 'finance',
-      ownerType: 'user',
-      userId: 'anonymous',
-    });
-  }
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
@@ -77,13 +55,15 @@ export class MediaController {
       type: 'object',
       properties: {
         file: { type: 'string', format: 'binary' },
+        app: { type: 'string', enum: ['webchat', 'finance'] },
+        ownerType: { type: 'string', enum: ['user', 'company'] },
         metadata: {
           type: 'string',
           description: 'Optional JSON string with metadata.',
-          example: '{"source":"web"}',
+          example: '{"source":"web","device":"mobile"}',
         },
       },
-      required: ['file'],
+      required: ['file', 'app'],
     },
   })
   @ApiCreatedResponse({
@@ -93,12 +73,30 @@ export class MediaController {
   @ApiBadRequestResponse({ description: 'Invalid file type or payload.' })
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
-    @Body() metadata: any,
+    @Body() uploadMediaDto: UploadMediaDto,
     @Request() req,
   ) {
+    const allowedApps = new Set(['webchat', 'finance']);
+    const resolvedApp = req.user?.app ?? uploadMediaDto.app;
+    if (!resolvedApp || !allowedApps.has(resolvedApp)) {
+      throw new BadRequestException('Invalid app');
+    }
+
+    const resolvedOwnerType =
+      req.user?.ownerType ?? uploadMediaDto.ownerType ?? 'user';
+
+    let metadata: Record<string, unknown> | undefined;
+    if (uploadMediaDto.metadata) {
+      try {
+        metadata = JSON.parse(uploadMediaDto.metadata);
+      } catch {
+        throw new BadRequestException('Invalid metadata JSON');
+      }
+    }
+
     const user = {
-      app: 'finance',
-      ownerType: 'user',
+      app: resolvedApp,
+      ownerType: resolvedOwnerType,
       userId: req.user?.userId || 'anonymous',
     };
 
